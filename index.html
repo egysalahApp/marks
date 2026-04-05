@@ -56,6 +56,15 @@
             </div>
         </div>
 
+        <!-- قسم اختيار الأسئلة المراد طباعتها -->
+        <div id="questionsSection" class="hidden space-y-4 mb-6 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <h3 class="font-bold text-gray-800 border-b border-gray-200 pb-2">3. اختر الحقول/الأسئلة للطباعة</h3>
+            <p class="text-xs text-gray-500 mb-3">قم بإزالة العلامة (الصح) عن الحقول الزائدة التي لا تريد ظهورها في ملف الـ PDF (مثل وقت البدء، البريد الإلكتروني، إلخ).</p>
+            <div id="checkboxesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto p-2 border border-gray-100 rounded bg-gray-50">
+                <!-- سيتم إضافة مربعات الاختيار هنا -->
+            </div>
+        </div>
+
         <!-- شريط التقدم وزر التنفيذ -->
         <div class="mt-8">
             <button id="generateBtn" onclick="generatePDFs()" disabled class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold py-3 px-4 rounded-md transition duration-200 flex justify-center items-center gap-2">
@@ -119,8 +128,27 @@
                     });
                 });
 
+                // تعبئة مربعات اختيار الأسئلة
+                const checkboxesContainer = document.getElementById('checkboxesContainer');
+                checkboxesContainer.innerHTML = '';
+                
+                // الحقول الافتراضية التي يضيفها الفورم ولا نحتاجها عادةً
+                const ignoredByDefault = ['ID', 'Start time', 'Completion time', 'Email', 'Name', 'معرف', 'وقت البدء', 'وقت الإكمال', 'البريد الإلكتروني', 'الاسم']; 
+                
+                headers.forEach(header => {
+                    // إذا كان الحقل من الحقول المزعجة، نلغي تفعيله افتراضياً
+                    const isChecked = !ignoredByDefault.includes(header) ? 'checked' : '';
+                    checkboxesContainer.innerHTML += `
+                        <label class="flex items-center space-x-2 space-x-reverse cursor-pointer p-1 hover:bg-gray-200 rounded">
+                            <input type="checkbox" value="${header}" class="question-cb form-checkbox h-4 w-4 text-blue-600" ${isChecked}>
+                            <span class="text-sm text-gray-700 truncate" title="${header}">${header}</span>
+                        </label>
+                    `;
+                });
+
                 // إظهار قسم الإعدادات وتفعيل الزر
                 document.getElementById('fieldsSection').classList.remove('hidden');
+                document.getElementById('questionsSection').classList.remove('hidden');
                 document.getElementById('generateBtn').disabled = false;
             };
 
@@ -150,11 +178,15 @@
 
             // خيارات تحويل HTML إلى PDF
             const opt = {
-                margin:       15,
+                margin:       [15, 10, 15, 10], // هوامش: أعلى، يمين، أسفل، يسار
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                html2canvas:  { scale: 2, useCORS: true, windowWidth: 800 }, // تحديد عرض النافذة لمنع تداخل النص
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } // منع قطع العناصر بين الصفحات
             };
+
+            // جلب الأسئلة المحددة فقط من قبل المستخدم
+            const selectedQuestions = Array.from(document.querySelectorAll('.question-cb:checked')).map(cb => cb.value);
 
             // معالجة كل صف (طالب)
             for (let i = 0; i < excelData.length; i++) {
@@ -168,10 +200,10 @@
 
                 // بناء محتوى الـ HTML (شكل ورقة الإجابة)
                 let htmlContent = `
-                    <div style="direction: rtl; font-family: Tahoma, Arial, sans-serif; padding: 10px; color: #333;">
+                    <div style="direction: rtl; font-family: Tahoma, Arial, sans-serif; padding: 20px; color: #333; width: 750px; box-sizing: border-box;">
                         <h2 style="text-align: center; color: #0078d4; border-bottom: 2px solid #0078d4; padding-bottom: 10px; margin-bottom: 20px;">تقرير استجابة الطالب</h2>
                         
-                        <div style="background: #f3f2f1; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <div style="background: #f3f2f1; padding: 15px; border-radius: 8px; margin-bottom: 20px; page-break-inside: avoid;">
                             <p style="margin: 5px 0;"><strong>الاسم:</strong> ${nameVal}</p>
                             <p style="margin: 5px 0;"><strong>الرقم الأكاديمي:</strong> ${idVal}</p>
                             <p style="margin: 5px 0;"><strong>الدرجة:</strong> <span style="color: red; font-weight: bold;">${gradeVal}</span></p>
@@ -180,17 +212,16 @@
                         <h3 style="color: #005a9e; margin-bottom: 15px;">التفاصيل والإجابات:</h3>
                 `;
 
-                // إضافة باقي الأسئلة
-                for (let key in row) {
-                    // تخطي الحقول التي استخدمناها في الترويسة إذا أردت (اختياري، هنا نعرض كل شيء)
-                    const answer = row[key] !== "" ? row[key] : '<span style="color:gray;">لم يجب</span>';
+                // إضافة الأسئلة المحددة فقط
+                selectedQuestions.forEach(key => {
+                    const answer = row[key] !== undefined && row[key] !== "" ? row[key] : '<span style="color:gray;">لم يتم الإجابة</span>';
                     htmlContent += `
-                        <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
-                            <div style="font-weight: bold; color: #444; margin-bottom: 5px;">${key}</div>
-                            <div style="color: #107c10;">${answer}</div>
+                        <div style="margin-bottom: 15px; padding: 15px; border: 1px solid #e1dfdd; border-radius: 6px; page-break-inside: avoid; background-color: #fff;">
+                            <div style="font-weight: bold; color: #444; margin-bottom: 8px;">${key}</div>
+                            <div style="color: #107c10; line-height: 1.6;">${answer}</div>
                         </div>
                     `;
-                }
+                });
 
                 htmlContent += `</div>`;
 
