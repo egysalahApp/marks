@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تحويل استجابات الفورم إلى PDF</title>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx"></script>
+  <style>
+    body { font-family: Arial; background:#f5f5f5; padding:20px; }
+    .box { background:white; padding:20px; border-radius:10px; max-width:600px; margin:auto; }
+    input, select, button { width:100%; margin:10px 0; padding:10px; }
+    button { background:#0078d4; color:white; border:none; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>تحويل استجابات Microsoft Forms إلى PDF</h2>
+
+    <label>ارفع ملف Excel من الفورم:</label>
+    <input type="file" id="fileInput" accept=".xlsx" />
+
+    <label>اختر حقل الرقم الأكاديمي:</label>
+    <select id="idField"></select>
+
+    <label>اختر حقل الاسم:</label>
+    <select id="nameField"></select>
+
+    <label>اختر حقل الدرجة:</label>
+    <select id="gradeField"></select>
+
+    <button onclick="generatePDFs()">إنشاء ملفات PDF</button>
+  </div>
+
+<script>
+let data = [];
+
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  const reader = new FileReader();
+
+  reader.onload = function(evt) {
+    const workbook = XLSX.read(evt.target.result, { type: 'binary' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    data = XLSX.utils.sheet_to_json(sheet);
+
+    const headers = Object.keys(data[0]);
+    const selects = ['idField','nameField','gradeField'];
+
+    selects.forEach(id => {
+      const select = document.getElementById(id);
+      select.innerHTML = '';
+      headers.forEach(h => {
+        const option = document.createElement('option');
+        option.value = h;
+        option.textContent = h;
+        select.appendChild(option);
+      });
+    });
+  };
+
+  reader.readAsBinaryString(file);
+});
+
+function generatePDFs() {
+  const idField = document.getElementById('idField').value;
+  const nameField = document.getElementById('nameField').value;
+  const gradeField = document.getElementById('gradeField').value;
+
+  data.forEach((row, index) => {
+    const doc = new jspdf.jsPDF();
+
+    let y = 10;
+    for (let key in row) {
+      doc.text(`${key}: ${row[key]}`, 10, y);
+      y += 10;
+    }
+
+    const fileName = `${row[idField]} - ${row[nameField]} - ${row[gradeField]}.pdf`;
+    doc.save(fileName);
+  });
+}
+</script>
+
+</body>
+</html>
