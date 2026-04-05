@@ -1,86 +1,242 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>تحويل استجابات الفورم إلى PDF</title>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx"></script>
-  <style>
-    body { font-family: Arial; background:#f5f5f5; padding:20px; }
-    .box { background:white; padding:20px; border-radius:10px; max-width:600px; margin:auto; }
-    input, select, button { width:100%; margin:10px 0; padding:10px; }
-    button { background:#0078d4; color:white; border:none; cursor:pointer; }
-  </style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>تحويل استجابات الفورم إلى PDF</title>
+    
+    <!-- مكتبة Tailwind للتصميم -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f2f1; }
+    </style>
+
+    <!-- مكتبات العمل الأساسية -->
+    <!-- 1. مكتبة قراءة الإكسل -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- 2. مكتبة تحويل HTML إلى PDF (تدعم العربية) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- 3. مكتبة إنشاء الملفات المضغوطة ZIP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- 4. مكتبة حفظ الملفات -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
-<body>
-  <div class="box">
-    <h2>تحويل استجابات Microsoft Forms إلى PDF</h2>
+<body class="min-h-screen flex items-center justify-center p-4">
 
-    <label>ارفع ملف Excel من الفورم:</label>
-    <input type="file" id="fileInput" accept=".xlsx" />
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl">
+        <div class="text-center mb-8">
+            <h2 class="text-2xl font-bold text-blue-600 mb-2">تحويل استجابات الإكسل إلى PDF</h2>
+            <p class="text-gray-500 text-sm">ارفع ملف إكسل (Excel) الذي قمت بتحميله من Microsoft Forms</p>
+        </div>
 
-    <label>اختر حقل الرقم الأكاديمي:</label>
-    <select id="idField"></select>
+        <!-- قسم رفع الملف -->
+        <div class="mb-6">
+            <label class="block text-sm font-bold text-gray-700 mb-2">1. ارفع ملف Excel (.xlsx)</label>
+            <input type="file" id="fileInput" accept=".xlsx" class="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
+        </div>
 
-    <label>اختر حقل الاسم:</label>
-    <select id="nameField"></select>
+        <!-- قسم اختيار الحقول (مخفي حتى يتم رفع الملف) -->
+        <div id="fieldsSection" class="hidden space-y-4 mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+            <h3 class="font-bold text-blue-800 border-b border-blue-200 pb-2">2. إعدادات تسمية الملفات</h3>
+            <p class="text-xs text-blue-600 mb-3">اختر الأعمدة التي ستُستخدم في تسمية ملفات الـ PDF الخاصة بالطلاب.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">الرقم الأكاديمي:</label>
+                    <select id="idField" class="w-full border border-gray-300 p-2 rounded-md"></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">الاسم:</label>
+                    <select id="nameField" class="w-full border border-gray-300 p-2 rounded-md"></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">الدرجة:</label>
+                    <select id="gradeField" class="w-full border border-gray-300 p-2 rounded-md"></select>
+                </div>
+            </div>
+        </div>
 
-    <label>اختر حقل الدرجة:</label>
-    <select id="gradeField"></select>
+        <!-- شريط التقدم وزر التنفيذ -->
+        <div class="mt-8">
+            <button id="generateBtn" onclick="generatePDFs()" disabled class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold py-3 px-4 rounded-md transition duration-200 flex justify-center items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                إنشاء ملفات PDF (في ملف ZIP)
+            </button>
+        </div>
 
-    <button onclick="generatePDFs()">إنشاء ملفات PDF</button>
-  </div>
+        <!-- شريط التقدم (مخفي في البداية) -->
+        <div id="progressSection" class="hidden mt-6 text-center">
+            <p id="progressText" class="text-sm font-bold text-blue-600 mb-2">جاري المعالجة... 0%</p>
+            <div class="w-full bg-gray-200 rounded-full h-3">
+                <div id="progressBar" class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
 
-<script>
-let data = [];
+    <!-- حاوية مخفية لتصميم شكل الـ PDF -->
+    <div id="pdfTemplate" class="hidden"></div>
 
-document.getElementById('fileInput').addEventListener('change', function(e) {
-  const file = e.target.files[0];
-  const reader = new FileReader();
+    <script>
+        let excelData = [];
 
-  reader.onload = function(evt) {
-    const workbook = XLSX.read(evt.target.result, { type: 'binary' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    data = XLSX.utils.sheet_to_json(sheet);
+        // 1. قراءة ملف الإكسل
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
 
-    const headers = Object.keys(data[0]);
-    const selects = ['idField','nameField','gradeField'];
+            const reader = new FileReader();
 
-    selects.forEach(id => {
-      const select = document.getElementById(id);
-      select.innerHTML = '';
-      headers.forEach(h => {
-        const option = document.createElement('option');
-        option.value = h;
-        option.textContent = h;
-        select.appendChild(option);
-      });
-    });
-  };
+            reader.onload = function(evt) {
+                const data = new Uint8Array(evt.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                // قراءة الورقة الأولى
+                const firstSheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[firstSheetName];
+                
+                // تحويل البيانات إلى مصفوفة (مع الاحتفاظ بالتنسيقات قدر الإمكان)
+                excelData = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-  reader.readAsBinaryString(file);
-});
+                if (excelData.length === 0) {
+                    alert("الملف فارغ أو لا يمكن قراءته.");
+                    return;
+                }
 
-function generatePDFs() {
-  const idField = document.getElementById('idField').value;
-  const nameField = document.getElementById('nameField').value;
-  const gradeField = document.getElementById('gradeField').value;
+                // استخراج العناوين (أسماء الأعمدة)
+                const headers = Object.keys(excelData[0]);
+                
+                // تعبئة القوائم المنسدلة
+                const selects = ['idField', 'nameField', 'gradeField'];
+                selects.forEach(id => {
+                    const select = document.getElementById(id);
+                    select.innerHTML = ''; // تنظيف القائمة
+                    
+                    headers.forEach(header => {
+                        const option = document.createElement('option');
+                        option.value = header;
+                        option.textContent = header;
+                        select.appendChild(option);
+                    });
+                });
 
-  data.forEach((row, index) => {
-    const doc = new jspdf.jsPDF();
+                // إظهار قسم الإعدادات وتفعيل الزر
+                document.getElementById('fieldsSection').classList.remove('hidden');
+                document.getElementById('generateBtn').disabled = false;
+            };
 
-    let y = 10;
-    for (let key in row) {
-      doc.text(`${key}: ${row[key]}`, 10, y);
-      y += 10;
-    }
+            reader.readAsArrayBuffer(file);
+        });
 
-    const fileName = `${row[idField]} - ${row[nameField]} - ${row[gradeField]}.pdf`;
-    doc.save(fileName);
-  });
-}
-</script>
+        // 2. توليد الـ PDFs والـ ZIP
+        async function generatePDFs() {
+            if (excelData.length === 0) return;
 
+            const idField = document.getElementById('idField').value;
+            const nameField = document.getElementById('nameField').value;
+            const gradeField = document.getElementById('gradeField').value;
+
+            const generateBtn = document.getElementById('generateBtn');
+            const progressSection = document.getElementById('progressSection');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const pdfTemplate = document.getElementById('pdfTemplate');
+
+            // تعطيل الزر وإظهار شريط التقدم
+            generateBtn.disabled = true;
+            progressSection.classList.remove('hidden');
+
+            const zip = new JSZip();
+            const folder = zip.folder("استجابات_الطلاب");
+
+            // خيارات تحويل HTML إلى PDF
+            const opt = {
+                margin:       15,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            // معالجة كل صف (طالب)
+            for (let i = 0; i < excelData.length; i++) {
+                const row = excelData[i];
+                
+                // بناء اسم الملف
+                const idVal = row[idField] || 'بدون_رقم';
+                const nameVal = row[nameField] || `طالب_${i+1}`;
+                const gradeVal = row[gradeField] || '';
+                const fileName = `${idVal} - ${nameVal} - ${gradeVal}`.replace(/[\/\\]/g, '_') + '.pdf';
+
+                // بناء محتوى الـ HTML (شكل ورقة الإجابة)
+                let htmlContent = `
+                    <div style="direction: rtl; font-family: Tahoma, Arial, sans-serif; padding: 10px; color: #333;">
+                        <h2 style="text-align: center; color: #0078d4; border-bottom: 2px solid #0078d4; padding-bottom: 10px; margin-bottom: 20px;">تقرير استجابة الطالب</h2>
+                        
+                        <div style="background: #f3f2f1; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                            <p style="margin: 5px 0;"><strong>الاسم:</strong> ${nameVal}</p>
+                            <p style="margin: 5px 0;"><strong>الرقم الأكاديمي:</strong> ${idVal}</p>
+                            <p style="margin: 5px 0;"><strong>الدرجة:</strong> <span style="color: red; font-weight: bold;">${gradeVal}</span></p>
+                        </div>
+                        
+                        <h3 style="color: #005a9e; margin-bottom: 15px;">التفاصيل والإجابات:</h3>
+                `;
+
+                // إضافة باقي الأسئلة
+                for (let key in row) {
+                    // تخطي الحقول التي استخدمناها في الترويسة إذا أردت (اختياري، هنا نعرض كل شيء)
+                    const answer = row[key] !== "" ? row[key] : '<span style="color:gray;">لم يجب</span>';
+                    htmlContent += `
+                        <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
+                            <div style="font-weight: bold; color: #444; margin-bottom: 5px;">${key}</div>
+                            <div style="color: #107c10;">${answer}</div>
+                        </div>
+                    `;
+                }
+
+                htmlContent += `</div>`;
+
+                // وضع المحتوى في الحاوية المخفية
+                pdfTemplate.innerHTML = htmlContent;
+                pdfTemplate.style.display = 'block';
+
+                try {
+                    // تحويل العنصر إلى PDF (Blob)
+                    opt.filename = fileName;
+                    const pdfBlob = await html2pdf().set(opt).from(pdfTemplate).output('blob');
+                    
+                    // إضافة الـ PDF لملف الـ ZIP
+                    folder.file(fileName, pdfBlob);
+                } catch (err) {
+                    console.error("خطأ في توليد PDF للطالب:", nameVal, err);
+                }
+
+                pdfTemplate.style.display = 'none'; // إخفاء الحاوية مجدداً
+
+                // تحديث شريط التقدم
+                const percent = Math.round(((i + 1) / excelData.length) * 100);
+                progressBar.style.width = percent + '%';
+                progressText.innerText = `جاري المعالجة... ${percent}% (${i + 1} من ${excelData.length})`;
+            }
+
+            // 3. ضغط وتحميل ملف الـ ZIP النهائي
+            progressText.innerText = "جاري ضغط الملفات... يرجى الانتظار";
+            
+            zip.generateAsync({ type: "blob" }).then(function(content) {
+                saveAs(content, "ملفات_الطلاب_PDF.zip");
+                
+                // إعادة الواجهة لحالتها
+                progressText.innerText = "✅ اكتملت العملية بنجاح!";
+                progressBar.classList.replace('bg-blue-600', 'bg-green-500');
+                progressText.classList.replace('text-blue-600', 'text-green-600');
+                
+                setTimeout(() => {
+                    generateBtn.disabled = false;
+                    progressSection.classList.add('hidden');
+                    progressBar.style.width = '0%';
+                    progressBar.classList.replace('bg-green-500', 'bg-blue-600');
+                    progressText.classList.replace('text-green-600', 'text-blue-600');
+                }, 3000);
+            });
+        }
+    </script>
 </body>
 </html>
